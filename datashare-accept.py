@@ -1,13 +1,28 @@
 """
-<APP NAME>: <SHORT DESCRIPTION>
+DatashareAccept: Accept Lake Formation-managed Amazon Redshift datashare invitations 
+and build their Glue databases.
 
-<SUMMARIZE WHAT THE APP DOES> 
+The script finds pending datashares in the account's Glue Data Catalog, accepts it and creates
+the matching federated AWS Glue database upon approval. It targets invitations from the past 7 days 
+whose name does not contain "_bi_" or "_fulfillment".
 
 Features:
-<ARE THERE ANY SPECIFIC FEATURES WORTH DESCRIBING?>
+1. Lists datashares shared with the account via redshift describe-data-shares-for-consumer.
+2. Skips any that already have a federated Glue database.
+3. Excludes datashares whose name contains "_bi_" or "_fulfillment" - these belong to other teams.
+4. Keeps only invitations created within the last RECENT_DAYS days (7 by default).
+5. Prompts (y/n) per invitation before making any change.
+6. Associates not-yet-accepted datashares to the Glue Data Catalog.
+7. Creates the federated Glue database, with 3 retry attempts if there is a lag between accepting an invite
+and creating a database.
+8. Derives account and region from the active session.
 
-Usage Example:
-  <ADD A COUPLE EXAMPLES OF HOW TO USE IT>
+Usage examples:
+  python datashare-accept.py                      # default "governance" profile
+  python datashare-accept.py --profile devsecops  # a "devsecops" AWS profile
+
+Prerequisites: an authenticated SSO session for the chosen profile (`aws sso login --profile <name>`)
+and boto3 installed.
 
 Author: Ivan Zots
 Released on: 2026-08-27
@@ -30,24 +45,25 @@ EXCLUDE = ("_bi_", "_fulfillment")
 RECENT_DAYS = 7
 
 def datashare_name(arn):
-    # the name is the piece after the last "/" in the ARN
+    """Return the datashare name: the segment after the last '/' in its ARN."""
     return arn.split("/")[-1]
 
 def is_accepted(associations):
-    # True if any association is GLUE_CATALOG with Status == "ACTIVE"
+    """Return True if the datashare is already accepted (has an ACTIVE association to the Glue catalog)."""
     for assoc in associations:
         if assoc["Status"] == "ACTIVE" and assoc["ConsumerIdentifier"] == GLUE_CATALOG:
             return True
     return False
 
 def invitation_date(associations):
-    # the CreatedDate of the "DataCatalog/..." association
+    """Return the invitation's CreatedDate (from its DataCatalog association) or None if absent."""
     for assoc in associations:
         if assoc["ConsumerIdentifier"].startswith("DataCatalog"):
             return assoc["CreatedDate"]
     return None
 
 def create_db_with_retry(db_name, arn, attempts=3, wait=5):
+    """Create the datashare's federated Glue database, retrying to account for a delay after accepting."""
     for attempt in range(1, attempts + 1):
         try:
             glue.create_database(DatabaseInput={
@@ -84,7 +100,7 @@ for page in paginator.paginate():
         if arn in created_arns:
             continue
 
-        # filter 1: skip if name contains anything in EXCLUDE
+        # filter 1: skip if name contains anything in EXCLUDE ("_bi_", "_fulfillment")
         if any(filtered_value in name for filtered_value in EXCLUDE):
             continue
 
@@ -99,7 +115,7 @@ for page in paginator.paginate():
         #compiling a list of invitations that need processing
         matches.append(share)
 
-if not matches:
+if not matches: 
     print("Nothing to accept!")
 else:
     for share in matches:
