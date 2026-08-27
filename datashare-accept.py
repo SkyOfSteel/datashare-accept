@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 session = boto3.Session(profile_name="governance", region_name="us-east-1")
 rs = session.client("redshift")
 
-GLUE_CATALOG = "arn:aws:glue:us-east-1:614518280298:catalog"
+account_id = session.client("sts").get_caller_identity()["Account"]     # which key holds the account?
+GLUE_CATALOG = f"arn:aws:glue:{session.region_name}:{account_id}:catalog"
 EXCLUDE = ("_bi_", "_fulfillment")
 RECENT_DAYS = 400
 
