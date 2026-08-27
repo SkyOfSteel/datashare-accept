@@ -39,7 +39,7 @@ for page in glue.get_paginator("get_databases").paginate():
 
 paginator = rs.get_paginator("describe_data_shares_for_consumer")
 
-found = False
+matches = []
 
 for page in paginator.paginate():
     for share in page["DataShares"]:
@@ -63,9 +63,29 @@ for page in paginator.paginate():
         if created_date < cutoff:
             continue
 
-        # name, arn, and "accepted" vs "NOT accepted"
-        status = "accepted" if is_accepted(associations) else "NOT accepted"
-        found = True
-        print(f"{name} [{status}] {arn} Created on: {created_date}")
-if not found:
+        #compiling a dict of invitations that need processing
+        matches.append(share)
+
+if not matches:
     print("Nothing to accept!")
+else:
+    for share in matches:
+        arn = share["DataShareArn"]
+        name = datashare_name(arn)
+        accepted = is_accepted(share["DataShareAssociations"])
+        db_name = name.removeprefix("ds_")
+        created_date = invitation_date(share["DataShareAssociations"])
+
+        answer = input(f"Process {name}, created on {created_date:%Y-%m-%d %H:%M:%S}? (y/n) ")
+        if answer.strip().lower() == "y":
+            # DRY RUN — print the plan, don't call AWS yet
+            # if NOT accepted, note "would accept (associate) ..."
+            # always note "would create database <db_name>"
+            if not accepted:
+                print(f"Would accept {name} and create database {db_name}")
+            if accepted:
+                print(f"Would create database {db_name}")
+        else:
+            print(f"  skipped {name}")
+
+input("Press Enter to exit...")
