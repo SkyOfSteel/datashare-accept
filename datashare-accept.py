@@ -18,6 +18,7 @@ and creating a database.
 8. Derives account and region from the active session.
 
 Usage examples:
+  aws sso login --profile governance              # log into your AWS SSO account
   python datashare-accept.py                      # default "governance" profile
   python datashare-accept.py --profile devsecops  # a "devsecops" AWS profile
 
