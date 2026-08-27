@@ -21,18 +21,31 @@ def is_accepted(associations):
 
 def invitation_date(associations):
     # the CreatedDate of the "DataCatalog/..." association
-    try:
-        for assoc in associations:
-            if assoc["ConsumerIdentifier"].startswith("DataCatalog"):
-                return assoc["CreatedDate"]
-    except TypeError:
-        print("TypeError: incorrect date type")
+    for assoc in associations:
+        if assoc["ConsumerIdentifier"].startswith("DataCatalog"):
+            return assoc["CreatedDate"]
+    return None
 
 paginator = rs.get_paginator("describe_data_shares_for_consumer")
+
 for page in paginator.paginate():
     for share in page["DataShares"]:
         arn = share["DataShareArn"]
+        associations = share["DataShareAssociations"]
         name = datashare_name(arn)
-        # TODO filter 1: skip if name contains anything in EXCLUDE
-        # TODO filter 2: skip if invitation_date is older than RECENT_DAYS
-        # then print: name, arn, and "accepted" vs "NOT accepted"
+
+        # filter 1: skip if name contains anything in EXCLUDE
+        if any(filtered_value in name for filtered_value in EXCLUDE):
+            continue
+
+        # filter 2: skip if invitation_date is older than RECENT_DAYS
+        created_date = invitation_date(associations)
+        if created_date is None:
+            continue
+        cutoff = datetime.now(timezone.utc) - timedelta(days=RECENT_DAYS)
+        if created_date < cutoff:
+            continue
+
+        # name, arn, and "accepted" vs "NOT accepted"
+        status = "accepted" if is_accepted(associations) else "NOT accepted"
+        print(f"{name} [{status}] {arn} Created on: {created_date}")
