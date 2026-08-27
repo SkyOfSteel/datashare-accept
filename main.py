@@ -6,7 +6,7 @@ rs = session.client("redshift")
 
 GLUE_CATALOG = "arn:aws:glue:us-east-1:614518280298:catalog"
 EXCLUDE = ("_bi_", "_fulfillment")
-RECENT_DAYS = 7
+RECENT_DAYS = 400
 
 def datashare_name(arn):
     # the name is the piece after the last "/" in the ARN
@@ -26,13 +26,30 @@ def invitation_date(associations):
             return assoc["CreatedDate"]
     return None
 
+glue = session.client("glue")
+
+# ARNs of datashares that already have a federated database (= already done)
+created_arns = set()
+for page in glue.get_paginator("get_databases").paginate():
+    for db in page["DatabaseList"]:
+        fed = db.get("FederatedDatabase")   # .get() → None if this db isn't federated
+        if fed:
+            # add fed["Identifier"] to created_arns
+            created_arns.add(fed["Identifier"])
+
 paginator = rs.get_paginator("describe_data_shares_for_consumer")
+
+found = False
 
 for page in paginator.paginate():
     for share in page["DataShares"]:
         arn = share["DataShareArn"]
         associations = share["DataShareAssociations"]
         name = datashare_name(arn)
+
+        # filter 0: skip datashares that already have a database
+        if arn in created_arns:
+            continue
 
         # filter 1: skip if name contains anything in EXCLUDE
         if any(filtered_value in name for filtered_value in EXCLUDE):
@@ -48,4 +65,7 @@ for page in paginator.paginate():
 
         # name, arn, and "accepted" vs "NOT accepted"
         status = "accepted" if is_accepted(associations) else "NOT accepted"
+        found = True
         print(f"{name} [{status}] {arn} Created on: {created_date}")
+if not found:
+    print("Nothing to accept!")
