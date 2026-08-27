@@ -9,16 +9,24 @@ EXCLUDE = ("_bi_", "_fulfillment")
 RECENT_DAYS = 7
 
 def datashare_name(arn):
-    # TODO: the name is the piece after the last "/" in the ARN
-    ...
+    # the name is the piece after the last "/" in the ARN
+    return arn.split("/")[-1]
 
 def is_accepted(associations):
-    # TODO: True if any association is GLUE_CATALOG with Status == "ACTIVE"
-    ...
+    # True if any association is GLUE_CATALOG with Status == "ACTIVE"
+    for assoc in associations:
+        if assoc["Status"] == "ACTIVE" and assoc["ConsumerIdentifier"] == GLUE_CATALOG:
+            return True
+    return False
 
 def invitation_date(associations):
-    # TODO: the CreatedDate of the "DataCatalog/..." association
-    ...
+    # the CreatedDate of the "DataCatalog/..." association
+    try:
+        for assoc in associations:
+            if assoc["ConsumerIdentifier"].startswith("DataCatalog"):
+                return assoc["CreatedDate"]
+    except TypeError:
+        print("TypeError: incorrect date type")
 
 paginator = rs.get_paginator("describe_data_shares_for_consumer")
 for page in paginator.paginate():
