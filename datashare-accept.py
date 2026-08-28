@@ -131,7 +131,6 @@ else:
             # if NOT accepted, note "would accept (associate) ..."
             # always note "would create database <db_name>"
             if not accepted:
-                print(f"Would accept {name} and create database {db_name}")
                 try:
                     rs.associate_data_share_consumer(
                         DataShareArn=arn,
@@ -142,11 +141,10 @@ else:
                     print(f"Error: {e}. Skipping.")
                     continue
 
-            print(f"Would create database {db_name}")
             if create_db_with_retry(db_name, arn):
                 print(f"Success! Created database {db_name}")
             else:
-                print(f"Giving up on {db_name}. Skipping.")
+                print(f"Max. retries reached for {db_name}. Skipping.")
                 continue
 
         else:
