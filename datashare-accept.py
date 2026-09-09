@@ -42,7 +42,7 @@ glue = session.client("glue")
 
 account_id = session.client("sts").get_caller_identity()["Account"]     # get the account number
 GLUE_CATALOG = f"arn:aws:glue:{session.region_name}:{account_id}:catalog"
-EXCLUDE = ("_bi_", "_fulfillment")
+EXCLUDE = ["_bi_", "_fulfillment"]
 RECENT_DAYS = 7
 
 def datashare_name(arn):
