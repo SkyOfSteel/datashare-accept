@@ -128,8 +128,6 @@ else:
 
         answer = input(f"Process {name}, created on {created_date:%Y-%m-%d %H:%M:%S}? (y/n) ")
         if answer.strip().lower() == "y":
-            # if NOT accepted, note "would accept (associate) ..."
-            # always note "would create database <db_name>"
             if not accepted:
                 try:
                     rs.associate_data_share_consumer(
