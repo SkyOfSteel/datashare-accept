@@ -32,8 +32,18 @@ Released on: 2026-08-27
 import boto3, argparse, time
 from datetime import datetime, timedelta, timezone
 
-parser = argparse.ArgumentParser(description="Accept LF-managed Redshift datashare invitations.")
-parser.add_argument("--profile", default="governance", help="AWS profile to use (default: governance)")
+parser = argparse.ArgumentParser(description="Accept LF-managed Redshift datashare invitations.", 
+                                 add_help=False)
+parser.add_argument("-h", "--help", action="help", help="Show this help message and exit.")
+parser.add_argument("--profile", default="default", 
+                    help="Name of the AWS SSO profile to use ('default' if nothing specified).")
+parser.add_argument("--exclude", nargs="*", default=["_bi_", "_fulfillment"], 
+                    help="Skip datashares whose name contains any of these (default: _bi_ _fulfillment). "
+                    "Values must be separated by spaces. "
+                    "Using this option replaces the default values. "
+                    "Typing --exclude without parameters shows all pending invites.")
+parser.add_argument("--days", type=int, default=7,
+                    help="Only invitations created in the last N days (default: 7).")
 args = parser.parse_args()
 
 session = boto3.Session(profile_name=args.profile, region_name="us-east-1")
@@ -43,8 +53,10 @@ lf = session.client("lakeformation")
 
 account_id = session.client("sts").get_caller_identity()["Account"]     # get the account number
 GLUE_CATALOG = f"arn:aws:glue:{session.region_name}:{account_id}:catalog"
-EXCLUDE = ["_bi_", "_fulfillment"]
-RECENT_DAYS = 7
+EXCLUDE = args.exclude
+RECENT_DAYS = args.days
+
+print(f"Profile: {args.profile} | Exclude names containing: {EXCLUDE} | Over the last {RECENT_DAYS} days")
 
 def datashare_name(arn):
     """Return the datashare name: the segment after the last '/' in its ARN."""
