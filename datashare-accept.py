@@ -39,6 +39,7 @@ args = parser.parse_args()
 session = boto3.Session(profile_name=args.profile, region_name="us-east-1")
 rs = session.client("redshift")
 glue = session.client("glue")
+lf = session.client("lakeformation")
 
 account_id = session.client("sts").get_caller_identity()["Account"]     # get the account number
 GLUE_CATALOG = f"arn:aws:glue:{session.region_name}:{account_id}:catalog"
@@ -139,8 +140,17 @@ else:
                     print(f"Error: {e}. Skipping.")
                     continue
 
+            try:
+                lf.register_resource(ResourceArn=arn)
+                print(f"Registered {name} with Lake Formation.")
+            except lf.exceptions.AlreadyExistsException:
+                print(f"{name} was already registered.")
+            except Exception as e:
+                print(f"Error registering {name}: {e}. Skipping.")
+                continue
+
             if create_db_with_retry(db_name, arn):
-                print(f"Success! Created database {db_name}")
+                print(f"Success! Created database {db_name}.")
             else:
                 print(f"Max. retries reached for {db_name}. Skipping.")
                 continue
