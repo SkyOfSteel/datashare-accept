@@ -57,5 +57,6 @@ When there's nothing to do, it prints `Nothing to accept!` and exits. Otherwise 
 ## To-Do
 
 1. ~~Test in the live environment.~~
-2. Try `[a]ll` on a live batch.
+2. ~~Try `[a]ll` on a live batch.~~
 3. Exit cleanly on Ctrl+C instead of printing a traceback.
+4. Optionally add a choice to process a single invite from the list by typing its number.
