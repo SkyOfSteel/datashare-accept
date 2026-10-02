@@ -37,8 +37,8 @@ When there's nothing to do, it prints `Nothing to accept!` and exits. Afterwards
 
 ## Known Issues
 
-N/A
+~~The script was skipping the register step after accepting the invite.~~
 
 ## To-Do
 
-1. Test in the live environment.
+~~1. Test in the live environment.~~

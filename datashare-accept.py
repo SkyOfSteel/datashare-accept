@@ -29,8 +29,20 @@ Author: Ivan Zots
 Released on: 2026-08-27
 """
 
-import boto3, argparse, time
+import boto3, argparse, time, subprocess
 from datetime import datetime, timedelta, timezone
+from botocore.exceptions import SSOError, TokenRetrievalError
+
+def create_session(profile, region):
+    """Return a boto3 session for the profile, running 'aws sso login' first if the login is missing or expired."""
+    session = boto3.Session(profile_name=profile, region_name=region)
+    try:
+        session.client("sts").get_caller_identity()          # check that the login works
+    except (SSOError, TokenRetrievalError):
+        print(f"No valid SSO login for profile '{profile}'. Opening the browser to log in...")
+        subprocess.run(["aws", "sso", "login", "--profile", profile], check=True)
+        session = boto3.Session(profile_name=profile, region_name=region)
+    return session
 
 parser = argparse.ArgumentParser(description="Accept LF-managed Redshift datashare invitations.", 
                                  add_help=False)
@@ -46,7 +58,7 @@ parser.add_argument("--days", type=int, default=7,
                     help="Only invitations created in the last N days (default: 7).")
 args = parser.parse_args()
 
-session = boto3.Session(profile_name=args.profile, region_name="us-east-1")
+session = create_session(args.profile, "us-east-1")
 rs = session.client("redshift")
 glue = session.client("glue")
 lf = session.client("lakeformation")
@@ -61,6 +73,11 @@ print(f"Profile: {args.profile} | Exclude names containing: {EXCLUDE} | Over the
 def datashare_name(arn):
     """Return the datashare name: the segment after the last '/' in its ARN."""
     return arn.split("/")[-1]
+
+def db_name_for(share_name):
+    """Return the Glue database name: the datashare name without its "ds_clstr_" or "ds_" prefix."""
+    db_name = share_name.removeprefix("ds_clstr_")
+    return db_name.removeprefix("ds_")
 
 def is_accepted(associations):
     """Return True if the datashare is already accepted (has an ACTIVE association to the Glue catalog)."""
@@ -132,42 +149,59 @@ for page in paginator.paginate():
 if not matches: 
     print("Nothing to accept!")
 else:
-    for share in matches:
-        arn = share["DataShareArn"]
-        name = datashare_name(arn)
-        accepted = is_accepted(share["DataShareAssociations"])
-        db_name = name.removeprefix("ds_")
+    print(f"\nFound {len(matches)} invitation(s):")
+    for number, share in enumerate(matches, start=1):
+        name = datashare_name(share["DataShareArn"])
         created_date = invitation_date(share["DataShareAssociations"])
+        status = "accepted" if is_accepted(share["DataShareAssociations"]) else "NOT accepted"
+        print(f"  {number}. {name}  {created_date:%Y-%m-%d %H:%M}  [{status}]  -> {db_name_for(name)}")
+    print()
 
-        answer = input(f"Process {name}, created on {created_date:%Y-%m-%d %H:%M:%S}? (y/n) ")
-        if answer.strip().lower() == "y":
-            if not accepted:
+    choice = input("Process [a]ll, go [o]ne by one, or [q]uit? ").strip().lower()
+    if choice not in ("a", "o"):
+        print("Quitting - nothing was changed.")
+    else:
+        for share in matches:
+            arn = share["DataShareArn"]
+            name = datashare_name(arn)
+            accepted = is_accepted(share["DataShareAssociations"])
+            db_name = db_name_for(name)
+            created_date = invitation_date(share["DataShareAssociations"])
+
+            if choice == "a":
+                print(f"Processing {name}...")
+                answer = "y"
+            else:
+                answer = input(f"Process {name}, created on {created_date:%Y-%m-%d %H:%M:%S}? (y/n) ")
+
+            if answer.strip().lower() == "y":
+                if not accepted:  # accept / register / create, unchanged
+                    try:
+                        rs.associate_data_share_consumer(
+                            DataShareArn=arn,
+                            ConsumerArn=GLUE_CATALOG,
+                        )
+                        print(f"Success! Accepted {name}.")
+                    except Exception as e:
+                        print(f"Error: {e}. Skipping.")
+                        continue
+
                 try:
-                    rs.associate_data_share_consumer(
-                        DataShareArn=arn,
-                        ConsumerArn=GLUE_CATALOG,
-                    )
-                    print(f"Success! Accepted {name}.")
+                    lf.register_resource(ResourceArn=arn)
+                    print(f"Registered {name} with Lake Formation.")
+                except lf.exceptions.AlreadyExistsException:
+                    print(f"{name} was already registered.")
                 except Exception as e:
-                    print(f"Error: {e}. Skipping.")
+                    print(f"Error registering {name}: {e}. Skipping.")
                     continue
 
-            try:
-                lf.register_resource(ResourceArn=arn)
-                print(f"Registered {name} with Lake Formation.")
-            except lf.exceptions.AlreadyExistsException:
-                print(f"{name} was already registered.")
-            except Exception as e:
-                print(f"Error registering {name}: {e}. Skipping.")
-                continue
+                if create_db_with_retry(db_name, arn):
+                    print(f"Success! Created database {db_name}.")
+                else:
+                    print(f"Max. retries reached for {db_name}. Skipping.")
+                    continue
 
-            if create_db_with_retry(db_name, arn):
-                print(f"Success! Created database {db_name}.")
             else:
-                print(f"Max. retries reached for {db_name}. Skipping.")
-                continue
-
-        else:
-            print(f"  skipped {name}")
+                print(f"  skipped {name}")
 
 input("Press Enter to exit...")
