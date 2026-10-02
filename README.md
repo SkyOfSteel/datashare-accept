@@ -14,11 +14,25 @@ It then shows the full list, including the database name each invitation will ge
 
 1. AWS CLI v2, with an SSO profile for the account that has Lake Formation admin rights.
 2. Python 3.9+.
-3. boto3 (`pip install boto3`).
+3. boto3, installed by the Setup steps below.
+
+## Setup
+
+Copy `datashare-accept.py`, `requirements.txt` to a folder. Then, in PowerShell, in that folder:
+
+```
+python -m venv venv
+.\venv\Scripts\python.exe -m pip install -r requirements.txt
+.\venv\Scripts\python.exe datashare-accept.py --profile <profile-name> --days 0
+```
+
+Calling the venv's `python.exe` by its path works without activating the venv, which helps where `Activate.ps1` is blocked by the script-execution policy. The last line is a safe first run: it logs in if needed and reads the invitation list, which confirms that the profile has access. With `--days 0` nothing qualifies, so it changes nothing and ends at `Nothing to accept!`.
+
+To launch the tool from a wrapper script, call `venv\Scripts\python.exe` by its full path the same way. The script pauses before it exits and returns an exit code, but an unexpected error still closes the window before it can be read, so have the wrapper pause at the end too (for example with `Read-Host`).
 
 ## Usage
 
-Run it from a terminal:
+Run it from a terminal. The examples use `python`; if the venv isn't activated, use `.\venv\Scripts\python.exe` instead:
 
 ```
 python datashare-accept.py                                     # "default" profile, default filters

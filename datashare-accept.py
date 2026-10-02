@@ -1,4 +1,4 @@
-"""
+r"""
 DatashareAccept: Accept Lake Formation-managed Amazon Redshift datashare invitations
 and build their Glue databases.
 
@@ -31,15 +31,26 @@ Feature Update:
     4. SSO login on demand, friendly setup errors, summary and exit code.
     5. Database names also drop the "ds_clstr_" prefix.
 
-Usage examples:
+Prerequisites: Python 3.9+, AWS CLI v2 (used for the SSO login), and an AWS SSO profile
+for the account with Lake Formation admin rights. boto3 is installed during setup.
+
+Setup (PowerShell, in the folder with this script and requirements.txt):
+
+  python -m venv venv
+  .\venv\Scripts\python.exe -m pip install -r requirements.txt
+  .\venv\Scripts\python.exe datashare-accept.py --profile <profile-name> --days 0
+
+The last line is a safe first run: it logs in if needed, reads the invitation list and changes
+nothing. Calling the venv's python.exe by its path needs no venv activation. A wrapper script
+should launch the tool the same way and pause at the end (e.g. Read-Host), because an
+unexpected error closes the window before it can be read.
+
+Usage examples (with the venv activated; otherwise use .\venv\Scripts\python.exe):
   python datashare-accept.py                                     # "default" profile, default filters
   python datashare-accept.py --profile governance                # a named AWS profile
   python datashare-accept.py --days 30                           # invitations from the last 30 days
   python datashare-accept.py --exclude _bi_ _fulfillment _test_  # replaces the defaults
   python datashare-accept.py --help                              # all options
-
-Prerequisites: Python 3.9+, boto3 (pip install boto3), AWS CLI v2 (used for the SSO login),
-and an AWS SSO profile for the account with Lake Formation admin rights.
 
 Author: Ivan Zots
 Released on: 2026-08-27
