@@ -29,9 +29,9 @@ Author: Ivan Zots
 Released on: 2026-08-27
 """
 
-import boto3, argparse, time, subprocess
+import boto3, argparse, time, subprocess, sys
 from datetime import datetime, timedelta, timezone
-from botocore.exceptions import SSOError, TokenRetrievalError
+from botocore.exceptions import SSOError, TokenRetrievalError, ProfileNotFound
 
 def create_session(profile, region):
     """Return a boto3 session for the profile, running 'aws sso login' first if the login is missing or expired."""
@@ -43,6 +43,12 @@ def create_session(profile, region):
         subprocess.run(["aws", "sso", "login", "--profile", profile], check=True)
         session = boto3.Session(profile_name=profile, region_name=region)
     return session
+
+def fail(message):
+    """Print an error, keep the window open until Enter is pressed, then exit with code 1."""
+    print(f"ERROR: {message}")
+    input("Press Enter to exit...")
+    sys.exit(1)
 
 parser = argparse.ArgumentParser(description="Accept LF-managed Redshift datashare invitations.", 
                                  add_help=False)
@@ -58,7 +64,15 @@ parser.add_argument("--days", type=int, default=7,
                     help="Only invitations created in the last N days (default: 7).")
 args = parser.parse_args()
 
-session = create_session(args.profile, "us-east-1")
+try:
+    session = create_session(args.profile, "us-east-1")
+except ProfileNotFound:
+    fail(f"AWS profile '{args.profile}' not found. Check the name with: aws configure list-profiles")
+except FileNotFoundError:
+    fail("The AWS CLI ('aws') was not found. Install AWS CLI v2, then try again.")
+except subprocess.CalledProcessError:
+    fail("The SSO login did not complete. Run the script again to retry.")
+
 rs = session.client("redshift")
 glue = session.client("glue")
 lf = session.client("lakeformation")
