@@ -42,6 +42,6 @@ When there's nothing to do, it prints `Nothing to accept!` and exits. Otherwise 
 
 ## To-Do
 
-~~1. Test in the live environment.~~
+1. ~~Test in the live environment.~~
 2. Try `[a]ll` on a live batch.
 3. Exit cleanly on Ctrl+C instead of printing a traceback.
